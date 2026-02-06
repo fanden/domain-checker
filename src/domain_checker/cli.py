@@ -19,6 +19,7 @@ from rich.progress import (
 from .checker import check_all_domains
 from .models import Availability, CheckerConfig, CheckResult, TaskState
 from .output import format_duration, print_results
+from .pricing import fetch_pricing
 from .rdap_bootstrap import load_rdap_bootstrap
 from .state import StateManager
 from .tld_list import fetch_tld_list
@@ -103,6 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-q", "--quiet", action="store_true", default=False,
         help="Suppress progress output",
     )
+    p.add_argument(
+        "--no-prices", action="store_true", default=False,
+        help="Skip fetching TLD pricing data",
+    )
     return p
 
 
@@ -134,6 +139,13 @@ async def main() -> int:
         console.print("[dim]Fetching RDAP bootstrap data...[/dim]")
         rdap_bootstrap = await load_rdap_bootstrap(data_dir)
         console.print(f"[dim]RDAP covers {len(rdap_bootstrap)} TLDs[/dim]")
+
+    # Load pricing data
+    pricing = {}
+    if not args.no_prices:
+        console.print("[dim]Fetching TLD pricing data...[/dim]")
+        pricing = await fetch_pricing(data_dir)
+        console.print(f"[dim]Pricing available for {len(pricing)} TLDs[/dim]")
 
     # State management
     state_mgr = StateManager(data_dir, words)
@@ -233,8 +245,12 @@ async def main() -> int:
             progress.update(task_id, completed=done, available=available_count)
             if args.verbose and not args.quiet:
                 if result.availability == Availability.AVAILABLE:
+                    price_info = ""
+                    p = pricing.get(result.tld)
+                    if p:
+                        price_info = f" ~${p.registration:.2f}"
                     progress.console.print(
-                        f"  [green]AVAIL[/green] {result.domain} ({result.method.value})"
+                        f"  [green]AVAIL[/green] {result.domain}{price_info} ({result.method.value})"
                     )
 
         await check_all_domains(
@@ -254,6 +270,7 @@ async def main() -> int:
         fmt=args.fmt,
         filter_status=args.filter_status,
         output_file=args.output,
+        pricing=pricing,
     )
 
     if args.output:

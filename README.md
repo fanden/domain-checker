@@ -16,6 +16,15 @@ For each `word.tld` combination, the checker runs a pipeline:
 
 The TLD list is pulled from [IANA's authoritative source](https://data.iana.org/TLD/tlds-alpha-by-domain.txt) and cached locally.
 
+### Pricing
+
+Results include estimated registration and renewal prices per TLD. Pricing is fetched from two free, no-auth sources and merged (keeping the cheaper price when both cover the same TLD):
+
+- **Porkbun API** — ~560 TLDs, retail prices
+- **Cloudflare at-cost data** via [cfdomainpricing.com](https://cfdomainpricing.com) — ~350 TLDs, wholesale/at-cost prices
+
+Combined this covers ~900 unique TLDs. TLDs without pricing data show `-` in the output. Pricing is cached locally for 24 hours.
+
 ## Setup
 
 Requires Python 3.11+.
@@ -100,6 +109,7 @@ Options:
   --include-idn            Include internationalized (xn--) TLDs
   --dns-only               DNS check only, skip RDAP/WHOIS
   --no-whois               Skip WHOIS, use DNS + RDAP only
+  --no-prices              Skip fetching TLD pricing data
   --nameservers NS ...     Custom DNS resolvers (e.g. 8.8.8.8)
   --concurrency N          Max concurrent checks (default: 100)
   --checkpoint-every N     Save interval (default: 50)
@@ -115,6 +125,7 @@ State is stored in `./data/` (or wherever `--data-dir` points):
 
 - `tlds.txt` — Cached IANA TLD list (refreshed every 24h)
 - `rdap_bootstrap.json` — Cached RDAP server mapping (refreshed every 24h)
+- `pricing.json` — Cached merged pricing from Porkbun + Cloudflare (refreshed every 24h)
 - `state_<hash>.json` — Checkpoint for each unique set of words
 
 The state hash is derived from your sorted word list, so `domain-checker milk cookies` and `domain-checker cookies milk` share the same state file. Different word lists get separate files, so multiple jobs can coexist.
@@ -147,6 +158,7 @@ src/domain_checker/
 ├── rdap_bootstrap.py    # IANA RDAP bootstrap data (TLD → server URL)
 ├── tld_list.py          # IANA TLD list download and caching
 ├── rate_limiter.py      # Per-host semaphore concurrency control
+├── pricing.py           # TLD pricing from Porkbun + Cloudflare
 ├── state.py             # JSON checkpoint save/load with atomic writes
 └── output.py            # Table, CSV, JSON output formatting
 ```
